@@ -346,7 +346,7 @@ public class WeixinUtils {
      * @param context
      * @return
      */
-    private String getCurrApkPath(Context context) {
+    public String getCurrApkPath(Context context) {
         return "/data/data/" + context.getPackageName() + "/";
     }
 

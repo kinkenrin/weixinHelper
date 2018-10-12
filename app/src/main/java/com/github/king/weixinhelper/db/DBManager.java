@@ -5,6 +5,7 @@ import android.database.Cursor;
 import android.os.Environment;
 import android.text.TextUtils;
 import android.util.Log;
+import android.util.Xml;
 
 import com.github.king.weixinhelper.SPUtils;
 import com.github.king.weixinhelper.WeixinUtils;
@@ -12,7 +13,15 @@ import com.github.king.weixinhelper.WeixinUtils;
 import net.sqlcipher.database.SQLiteDatabase;
 import net.sqlcipher.database.SQLiteDatabaseHook;
 
+import org.xmlpull.v1.XmlPullParser;
+
+import java.io.BufferedOutputStream;
+import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -29,6 +38,7 @@ public class DBManager {
     private String mDbFile;
     private String mVoicePath;
     private String mImgPath;
+    private String mVideoPath;
 
     private DBManager(Context context) {
         mContext = context;
@@ -36,6 +46,7 @@ public class DBManager {
         String wxDbMainDirName = WeixinUtils.getInstance().getWxDbMainDirName();
         mVoicePath = Environment.getExternalStorageDirectory().getAbsolutePath() + "/tencent/MicroMsg/" + wxDbMainDirName + "/voice2/";
         mImgPath = Environment.getExternalStorageDirectory().getAbsolutePath() + "/tencent/MicroMsg/" + wxDbMainDirName + "/image2/";
+        mVideoPath = Environment.getExternalStorageDirectory().getAbsolutePath() + "/tencent/MicroMsg/" + wxDbMainDirName + "/video/";
         SQLiteDatabase.loadLibs(context);
         mHook = new SQLiteDatabaseHook() {
             public void preKey(SQLiteDatabase database) {
@@ -103,25 +114,43 @@ public class DBManager {
         Cursor c1 = null;
         try {
             SQLiteDatabase db = getSQLiteDatabase();
-            c1 = db.rawQuery("select * from message order by msgId", null);
+            c1 = db.rawQuery("select *, message.type as mType, rcontact.type as rType from message left join rcontact on message.talker=rcontact.username where nickname='Alan' order by msgId", null);
             while (c1.moveToNext()) {
-                String isSend = c1.getString(c1.getColumnIndex("isSend"));
+                int isSend = c1.getInt(c1.getColumnIndex("isSend"));
                 String status = c1.getString(c1.getColumnIndex("status"));
                 String talker = c1.getString(c1.getColumnIndex("talker"));
                 String content = c1.getString(c1.getColumnIndex("content"));
                 String msgSvrId = c1.getString(c1.getColumnIndex("msgSvrId"));
                 String msgId = c1.getString(c1.getColumnIndex("msgId"));
                 String imgPath = c1.getString(c1.getColumnIndex("imgPath"));
-                int type = c1.getInt(c1.getColumnIndex("type"));
-                if (type == 34) {
+                String alias = c1.getString(c1.getColumnIndex("alias"));
+                String nickname = c1.getString(c1.getColumnIndex("nickname"));
+                int type = c1.getInt(c1.getColumnIndex("mType"));
+                if (type == 47) {
+                    if (isSend == 0) {
+                        imgPath = calculateEmojiUrl(content);
+                    } else {
+
+                    }
+                } else if (type == 34) {
                     //语音
                     imgPath = calculateVoiceFilePath(imgPath);
                 } else if (type == 3) {
                     //图片
                     imgPath = calculateImgFilePath(imgPath);
+                } else if (type == 43) {
+                    //小视频
+                    //预览图片
+                    String previewFilePath = calculateVideoPreviewFilePath(imgPath);
+                    Log.i("message","previewFilePath:"+previewFilePath+"   exists:"+new File(previewFilePath).exists());
+                    //视频地址
+                    imgPath = calculateVideoFilePath(imgPath);
                 }
-                Log.i("message", "msgId:" + msgId + "  msgSvrId:" + msgSvrId + " isSend:" + isSend + "   status:" + status + "   talker:" + talker + "   content:" + content
-                        + "  imgPath:" + imgPath);
+                Log.i("message", "type:" + type + "  msgSvrId:" + msgSvrId + " isSend:" + isSend + "   status:" + status + "   talker:" + talker + "   content:" + content
+                        + "  exists:" + (imgPath != null && new File(imgPath).exists())
+                        + "  imgPath:" + imgPath
+                        + "  nickname:" + nickname
+                        + "  alias:" + alias);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -154,6 +183,68 @@ public class DBManager {
             return mImgPath + p1 + "/" + p2 + "/" + tmpstr2;
         }
         return imgPath;
+    }
+
+    private String calculateVideoFilePath(String imgPath) {
+        if (!TextUtils.isEmpty(imgPath)) {
+            return mVideoPath + imgPath + ".mp4";
+        }
+        return imgPath;
+    }
+
+    private String calculateVideoPreviewFilePath(String imgPath) {
+        if (!TextUtils.isEmpty(imgPath)) {
+            return mVideoPath + imgPath + ".jpg";
+        }
+        return imgPath;
+    }
+
+    private String calculateEmojiUrl(String content) {
+        String tmpstr = null;
+        if (!TextUtils.isEmpty(content)) {
+            InputStream in = null;
+            try {
+                String[] split = content.split(":");
+                String substring = split[4];
+                in = new ByteArrayInputStream(substring.getBytes());
+                XmlPullParser parser = Xml.newPullParser();
+                parser.setInput(in, "utf-8");
+                //得到事件类型
+                int eventType = parser.getEventType();
+                while (eventType != XmlPullParser.END_DOCUMENT) {
+                    switch (eventType) {
+                        case XmlPullParser.START_DOCUMENT:
+                            break;
+                        case XmlPullParser.START_TAG:
+                            /**
+                             * 通过getName判断读到哪个标签, 然后通过nextText获取文本节点值，
+                             * 或者通过getAttributeValue(i)获取属性节点值
+                             */
+                            String name = parser.getName();
+                            if ("emoji".equals(name)) {
+                                tmpstr = parser.getAttributeValue(null, "cdnurl");
+                                tmpstr = tmpstr.replace("*#*", "s:");
+                            }
+                            break;
+                        case XmlPullParser.END_TAG:
+                            break;
+                    }
+                    eventType = parser.next();
+                }
+            } catch (Exception e) {
+
+            } finally {
+                try {
+                    if (in != null) {
+                        in.close();
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+
+        }
+        return tmpstr;
     }
 
     /**
