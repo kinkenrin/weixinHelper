@@ -36,17 +36,20 @@ public class DBManager {
     private Context mContext;
     private SQLiteDatabaseHook mHook;
     private String mDbFile;
+    private String mMainPath;
     private String mVoicePath;
     private String mImgPath;
     private String mVideoPath;
+    private String mEmojiPath;
 
     private DBManager(Context context) {
         mContext = context;
         mDbFile = WeixinUtils.getInstance().getWxDbDataFilePath(mContext).getAbsolutePath();
-        String wxDbMainDirName = WeixinUtils.getInstance().getWxDbMainDirName();
-        mVoicePath = Environment.getExternalStorageDirectory().getAbsolutePath() + "/tencent/MicroMsg/" + wxDbMainDirName + "/voice2/";
-        mImgPath = Environment.getExternalStorageDirectory().getAbsolutePath() + "/tencent/MicroMsg/" + wxDbMainDirName + "/image2/";
-        mVideoPath = Environment.getExternalStorageDirectory().getAbsolutePath() + "/tencent/MicroMsg/" + wxDbMainDirName + "/video/";
+        mMainPath = WeixinUtils.getInstance().getWxMainPath();
+        mVoicePath = mMainPath + "/voice2/";
+        mImgPath = mMainPath + "/image2/";
+        mVideoPath = mMainPath + "/video/";
+        mEmojiPath = mMainPath + "/emoji/";
         SQLiteDatabase.loadLibs(context);
         mHook = new SQLiteDatabaseHook() {
             public void preKey(SQLiteDatabase database) {
@@ -114,7 +117,7 @@ public class DBManager {
         Cursor c1 = null;
         try {
             SQLiteDatabase db = getSQLiteDatabase();
-            c1 = db.rawQuery("select *, message.type as mType, rcontact.type as rType from message left join rcontact on message.talker=rcontact.username where nickname='Alan' order by msgId", null);
+            c1 = db.rawQuery("select *, message.type as mType, rcontact.type as rType from message left join rcontact on message.talker=rcontact.username where talker='jinxianl_2005' order by msgId", null);
             while (c1.moveToNext()) {
                 int isSend = c1.getInt(c1.getColumnIndex("isSend"));
                 String status = c1.getString(c1.getColumnIndex("status"));
@@ -127,10 +130,9 @@ public class DBManager {
                 String nickname = c1.getString(c1.getColumnIndex("nickname"));
                 int type = c1.getInt(c1.getColumnIndex("mType"));
                 if (type == 47) {
-                    if (isSend == 0) {
-                        imgPath = calculateEmojiUrl(content);
-                    } else {
-
+                    String calculateEmojiUrl = calculateEmojiUrl2(content, db);
+                    if (calculateEmojiUrl != null) {
+                        imgPath = calculateEmojiUrl;
                     }
                 } else if (type == 34) {
                     //语音
@@ -142,7 +144,7 @@ public class DBManager {
                     //小视频
                     //预览图片
                     String previewFilePath = calculateVideoPreviewFilePath(imgPath);
-                    Log.i("message","previewFilePath:"+previewFilePath+"   exists:"+new File(previewFilePath).exists());
+                    Log.i("message", "previewFilePath:" + previewFilePath + "   exists:" + new File(previewFilePath).exists());
                     //视频地址
                     imgPath = calculateVideoFilePath(imgPath);
                 }
@@ -160,6 +162,40 @@ public class DBManager {
             }
             closeDB();
         }
+    }
+
+    public String searchEmoji(String md5, SQLiteDatabase db) {
+        Cursor c1 = null;
+        String imgUrl = null;
+        try {
+//            SQLiteDatabase db = getSQLiteDatabase();
+            c1 = db.rawQuery("select EmojiInfo.md5 as eMd5,EmojiInfoDesc.md5 as eMd5_2, cdnurl,desc,EmojiInfo.groupId as rGroupId from EmojiInfo left join EmojiInfoDesc on EmojiInfoDesc.md5=EmojiInfo.md5 where EmojiInfo.md5 = ?", new String[]{md5});
+            while (c1.moveToNext()) {
+                String md5Str = c1.getString(c1.getColumnIndex("eMd5"));
+                String cdnurl = c1.getString(c1.getColumnIndex("cdnUrl"));
+                String desc = c1.getString(c1.getColumnIndex("desc"));
+                String groupId = c1.getString(c1.getColumnIndex("rGroupId"));
+                /*Log.i("searchEmoji", "md5Str:" + md5Str
+                        + "  name:" + name
+                        + "  cdnurl:" + cdnurl
+                        + "  content:" + content
+                );*/
+                if (!TextUtils.isEmpty(cdnurl)) {
+                    imgUrl = cdnurl;
+                } else {
+                    imgUrl = mEmojiPath + groupId + "/" + md5Str + "_cover";
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            if (c1 != null) {
+                c1.close();
+            }
+            //暂时不关交给调用方关闭
+//            closeDB();
+        }
+        return imgUrl;
     }
 
     private String calculateVoiceFilePath(String imgPath) {
@@ -247,6 +283,15 @@ public class DBManager {
         return tmpstr;
     }
 
+    private String calculateEmojiUrl2(String content, SQLiteDatabase db) {
+        if (!TextUtils.isEmpty(content)) {
+            String[] split = content.split(":");
+            String substring = split[3];
+            return searchEmoji(substring, db);
+        }
+        return null;
+    }
+
     /**
      * 获取所有未上传的数据
      *
@@ -315,7 +360,6 @@ public class DBManager {
 
     }*/
 
-    //todo 保存 compnyid  serviceid  localnum
     /*public void saveUserInfo(CallLogDao data) {
         try {
             SQLiteDatabase db = getSQLiteDatabase();

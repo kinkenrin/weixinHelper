@@ -2,6 +2,7 @@ package com.github.king.weixinhelper;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.os.Environment;
 import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Log;
@@ -150,6 +151,11 @@ public class WeixinUtils {
 
         }
         return pwds;
+    }
+
+    public String getWxMainPath() {
+        String wxDbMainDirName = getWxDbMainDirName();
+        return Environment.getExternalStorageDirectory().getAbsolutePath() + "/tencent/MicroMsg/" + wxDbMainDirName;
     }
 
     /**
