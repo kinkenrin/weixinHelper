@@ -10,10 +10,6 @@ import android.util.Xml;
 
 import com.github.king.weixinhelper.db.DBManager;
 
-import net.sqlcipher.Cursor;
-import net.sqlcipher.database.SQLiteDatabase;
-import net.sqlcipher.database.SQLiteDatabaseHook;
-
 import org.xmlpull.v1.XmlPullParser;
 
 import java.io.DataOutputStream;

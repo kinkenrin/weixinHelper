@@ -2,7 +2,6 @@ package com.github.king.weixinhelper.db;
 
 import android.content.Context;
 import android.database.Cursor;
-import android.os.Environment;
 import android.text.TextUtils;
 import android.util.Log;
 import android.util.Xml;
@@ -15,11 +14,8 @@ import net.sqlcipher.database.SQLiteDatabaseHook;
 
 import org.xmlpull.v1.XmlPullParser;
 
-import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.concurrent.atomic.AtomicInteger;
