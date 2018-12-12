@@ -1,0 +1,4 @@
+<resources>
+    <string name="accessibility_tip">微信助手（推荐）</string>
+    <string name="accessibility_desc">微信助手辅助功能</string>
+</resources>
